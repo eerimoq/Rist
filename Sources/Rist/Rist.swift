@@ -31,13 +31,20 @@ public class RistContext {
         rist_destroy(context)
     }
 
-    public func addPeer(config: rist_peer_config) -> RistPeer? {
-        var config = config
+    public func addPeer(url: String) -> RistPeer? {
+        var config: UnsafeMutablePointer<rist_peer_config>?
+        var result = withUnsafeMutablePointer(to: &config) { configPointer in
+            rist_parse_address2(url.cString(using: .utf8), configPointer)
+        }
+        guard result == 0 else {
+            return nil
+        }
         var peer: OpaquePointer?
-        let result = withUnsafeMutablePointer(to: &peer) { peerPointer in
-            withUnsafePointer(to: &config) { configPointer in
-                rist_peer_create(context, peerPointer, configPointer)
-            }
+        result = withUnsafeMutablePointer(to: &peer) { peerPointer in
+            rist_peer_create(context, peerPointer, config)
+        }
+        withUnsafeMutablePointer(to: &config) { configPointer in
+            _ = rist_peer_config_free2(configPointer)
         }
         guard result == 0, let peer else {
             return nil
@@ -64,5 +71,9 @@ public class RistContext {
             }
         }
         return writtenCount == data.count
+    }
+
+    public func start() -> Bool {
+        return rist_start(context) == 0
     }
 }
