@@ -1,5 +1,5 @@
 import librist
 
-public func ristVersion() {
-    print(librist_version()!)
+public func ristVersion() -> String {    
+    return String(cString: librist_version()!)
 }
