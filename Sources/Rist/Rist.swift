@@ -16,10 +16,10 @@ public class RistPeer {
 public class RistContext {
     let context: OpaquePointer
 
-    public init?(senderProfile _: rist_profile = RIST_PROFILE_SIMPLE) {
+    public init?(senderProfile profile: rist_profile = RIST_PROFILE_SIMPLE) {
         var context: OpaquePointer?
         let result = withUnsafeMutablePointer(to: &context) { contextPointer in
-            rist_sender_create(contextPointer, RIST_PROFILE_SIMPLE, 0, nil)
+            rist_sender_create(contextPointer, profile, 0, nil)
         }
         guard result == 0, let context else {
             return nil
@@ -52,9 +52,9 @@ public class RistContext {
         return RistPeer(peer: peer)
     }
 
-    public func senderWrite(data: Data) -> Bool {
+    public func send(data: Data) -> Bool {
         let writtenCount = data.withUnsafeBytes { dataPointer in
-            var dataBlock: rist_data_block = .init(
+            var dataBlock = rist_data_block(
                 payload: dataPointer.baseAddress,
                 payload_len: data.count,
                 ts_ntp: 0,
