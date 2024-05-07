@@ -31,6 +31,7 @@ let package = Package(
             "contrib/sha256.c",
             "contrib/stdio-shim.c",
             "contrib/time-shim.c",
+            "contrib/contrib_cJSON/cjson/cJSON.c",
             "src/crypto/crypto.c",
             "src/crypto/psk.c",
             "src/flow.c",
