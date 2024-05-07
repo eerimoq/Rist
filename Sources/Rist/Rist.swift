@@ -1,5 +1,5 @@
 import librist
 
-func ristVersion() {
+public func ristVersion() {
     print(librist_version()!)
 }
