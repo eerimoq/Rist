@@ -1,0 +1,3 @@
+[submodule "Sources/librist"]
+	path = Sources/librist
+	url = git@github.com:eerimoq/librist.git

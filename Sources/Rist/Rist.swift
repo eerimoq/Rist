@@ -1,2 +1,5 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
+import librist
+
+func ristVersion() {
+    print(librist_version()!)
+}

@@ -5,19 +5,52 @@ import PackageDescription
 
 let package = Package(
     name: "Rist",
+    platforms: [
+        .iOS(.v16)
+    ],
     products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
+        .library(
+            name: "librist",
+            targets: ["librist"]
+        ),
         .library(
             name: "Rist",
-            targets: ["Rist"]),
+            targets: ["Rist", "librist"]),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
+        .target(name: "Rist", dependencies: ["librist"]),
         .target(
-            name: "Rist"),
-        .testTarget(
-            name: "RistTests",
-            dependencies: ["Rist"]),
+          name: "librist",
+          dependencies: [],
+          exclude: [
+          ],
+          sources: [
+            "src/flow.c",
+            "src/libevsocket.c",
+            "src/logging.c",
+            "src/mpegts.c",
+            "src/network.c",
+            "src/peer.c",
+            "src/rist-common.c",
+            "src/rist-thread.c",
+            "src/rist.c",
+            "src/rist_ref.c",
+            "src/udp.c",
+            "src/udpsocket.c",
+            "src/crypto/crypto.c",
+            "src/crypto/psk.c",
+            "src/crypto/random.c",
+            "src/crypto/srp_constants.c",
+          ],
+          cSettings: [
+            .headerSearchPath("include/librist"),
+            .headerSearchPath("contrib/mbedtls/include"),
+            .headerSearchPath("contrib"),
+            .headerSearchPath("src"),
+            .headerSearchPath("."),
+          ]
+        ),
+
+
     ]
 )
