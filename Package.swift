@@ -41,13 +41,17 @@ let package = Package(
             "src/crypto/psk.c",
             "src/crypto/random.c",
             "src/crypto/srp_constants.c",
+            "src/proto/eap.c",
+            "src/proto/gre.c",
+            "src/proto/rist_time.c",
+            "src/proto/rtp.c",
           ],
           cSettings: [
+            .headerSearchPath("src"),
+            .headerSearchPath("."),
             .headerSearchPath("include/librist"),
             .headerSearchPath("contrib/mbedtls/include"),
             .headerSearchPath("contrib"),
-            .headerSearchPath("src"),
-            .headerSearchPath("."),
           ]
         ),
 
