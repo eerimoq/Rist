@@ -16,7 +16,7 @@ public class RistPeer {
 public class RistContext {
     let context: OpaquePointer
 
-    public init?(senderProfile profile: rist_profile = RIST_PROFILE_SIMPLE) {
+    public init?(senderProfile profile: rist_profile = RIST_PROFILE_MAIN) {
         var context: OpaquePointer?
         let result = withUnsafeMutablePointer(to: &context) { contextPointer in
             rist_sender_create(contextPointer, profile, 0, nil)
