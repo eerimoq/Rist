@@ -52,21 +52,19 @@ public class RistContext {
                     return 0
                 }
                 let context: RistContext = Unmanaged.fromOpaque(arg).takeUnretainedValue()
-                DispatchQueue.main.async {
-                    guard let stats = stats?.pointee.stats else {
-                        return
-                    }
-                    context.onStats?(RistStats(sender: RistSenderStats(
-                        peerId: stats.sender_peer.peer_id,
-                        bandwidth: UInt32(stats.sender_peer.bandwidth),
-                        retryBandwidth: UInt32(stats.sender_peer.retry_bandwidth),
-                        sentPackets: stats.sender_peer.sent,
-                        receivedPackets: stats.sender_peer.received,
-                        retransmittedPackets: stats.sender_peer.retransmitted,
-                        quality: stats.sender_peer.quality,
-                        rtt: stats.sender_peer.rtt
-                    )))
+                guard let stats = stats?.pointee.stats else {
+                    return 0
                 }
+                context.onStats?(RistStats(sender: RistSenderStats(
+                    peerId: stats.sender_peer.peer_id,
+                    bandwidth: UInt32(stats.sender_peer.bandwidth),
+                    retryBandwidth: UInt32(stats.sender_peer.retry_bandwidth),
+                    sentPackets: stats.sender_peer.sent,
+                    receivedPackets: stats.sender_peer.received,
+                    retransmittedPackets: stats.sender_peer.retransmitted,
+                    quality: stats.sender_peer.quality,
+                    rtt: stats.sender_peer.rtt
+                )))
                 return 0
             }
         self.context = context
