@@ -7,9 +7,15 @@ public func ristVersion() -> String {
 
 public class RistPeer {
     let peer: OpaquePointer
+    let context: RistContext
 
-    init(peer: OpaquePointer) {
+    init(peer: OpaquePointer, context: RistContext) {
         self.peer = peer
+        self.context = context
+    }
+
+    deinit {
+        rist_peer_destroy(context.context, peer)
     }
 }
 
@@ -49,7 +55,7 @@ public class RistContext {
         guard result == 0, let peer else {
             return nil
         }
-        return RistPeer(peer: peer)
+        return RistPeer(peer: peer, context: self)
     }
 
     public func send(data: Data) -> Bool {
