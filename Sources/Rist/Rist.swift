@@ -103,24 +103,28 @@ public class RistContext {
     }
 
     public func send(data: Data) -> Bool {
-        let writtenCount = data.withUnsafeBytes { dataPointer in
-            var dataBlock = rist_data_block(
-                payload: dataPointer.baseAddress,
-                payload_len: data.count,
-                ts_ntp: 0,
-                virt_src_port: 0,
-                virt_dst_port: 0,
-                peer: nil,
-                flow_id: 0,
-                seq: 0,
-                flags: 0,
-                ref: nil
-            )
-            return withUnsafePointer(to: &dataBlock) { dataBlockPointer in
-                rist_sender_data_write(context, dataBlockPointer)
-            }
+        return data.withUnsafeBytes { dataPointer in
+            send(dataPointer: dataPointer, count: data.count)
         }
-        return writtenCount == data.count
+    }
+
+    public func send(dataPointer: UnsafeRawBufferPointer, count: Int) -> Bool {
+        var dataBlock = rist_data_block(
+            payload: dataPointer.baseAddress,
+            payload_len: count,
+            ts_ntp: 0,
+            virt_src_port: 0,
+            virt_dst_port: 0,
+            peer: nil,
+            flow_id: 0,
+            seq: 0,
+            flags: 0,
+            ref: nil
+        )
+        let writtenCount = withUnsafePointer(to: &dataBlock) { dataBlockPointer in
+            rist_sender_data_write(context, dataBlockPointer)
+        }
+        return writtenCount == count
     }
 
     public func start() -> Bool {
