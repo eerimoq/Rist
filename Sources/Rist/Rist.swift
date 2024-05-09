@@ -7,8 +7,8 @@ public func ristVersion() -> String {
 
 public struct RistSenderStats {
     public let peerId: UInt32
-    public let bandwidth: UInt32
-    public let retryBandwidth: UInt32
+    public let bandwidth: UInt64
+    public let retryBandwidth: UInt64
     public let sentPackets: UInt64
     public let receivedPackets: UInt64
     public let retransmittedPackets: UInt64
@@ -57,8 +57,8 @@ public class RistContext {
                 }
                 context.onStats?(RistStats(sender: RistSenderStats(
                     peerId: stats.sender_peer.peer_id,
-                    bandwidth: UInt32(stats.sender_peer.bandwidth),
-                    retryBandwidth: UInt32(stats.sender_peer.retry_bandwidth),
+                    bandwidth: UInt64(stats.sender_peer.bandwidth),
+                    retryBandwidth: UInt64(stats.sender_peer.retry_bandwidth),
                     sentPackets: stats.sender_peer.sent,
                     receivedPackets: stats.sender_peer.received,
                     retransmittedPackets: stats.sender_peer.retransmitted,
