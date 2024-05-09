@@ -5,6 +5,21 @@ public func ristVersion() -> String {
     return String(cString: librist_version()!)
 }
 
+public struct RistSenderStats {
+    public let peerId: UInt32
+    public let bandwidth: UInt32
+    public let retryBandwidth: UInt32
+    public let sentPackets: UInt64
+    public let receivedPackets: UInt64
+    public let retransmittedPackets: UInt64
+    public let quality: Double
+    public let rtt: UInt32
+}
+
+public struct RistStats {
+    public let sender: RistSenderStats
+}
+
 public class RistPeer {
     let peer: OpaquePointer
     let context: RistContext
@@ -21,16 +36,45 @@ public class RistPeer {
 
 public class RistContext {
     let context: OpaquePointer
+    public var onStats: ((RistStats) -> Void)?
 
     public init?(senderProfile profile: rist_profile = RIST_PROFILE_MAIN) {
         var context: OpaquePointer?
-        let result = withUnsafeMutablePointer(to: &context) { contextPointer in
+        var result = withUnsafeMutablePointer(to: &context) { contextPointer in
             rist_sender_create(contextPointer, profile, 0, nil)
         }
         guard result == 0, let context else {
             return nil
         }
+        let handleStats: @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<rist_stats>?)
+            -> Int32 = { arg, stats in
+                guard let arg else {
+                    return 0
+                }
+                let context: RistContext = Unmanaged.fromOpaque(arg).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    guard let stats = stats?.pointee.stats else {
+                        return
+                    }
+                    context.onStats?(RistStats(sender: RistSenderStats(
+                        peerId: stats.sender_peer.peer_id,
+                        bandwidth: UInt32(stats.sender_peer.bandwidth),
+                        retryBandwidth: UInt32(stats.sender_peer.retry_bandwidth),
+                        sentPackets: stats.sender_peer.sent,
+                        receivedPackets: stats.sender_peer.received,
+                        retransmittedPackets: stats.sender_peer.retransmitted,
+                        quality: stats.sender_peer.quality,
+                        rtt: stats.sender_peer.rtt
+                    )))
+                }
+                return 0
+            }
         self.context = context
+        onStats = nil
+        result = rist_stats_callback_set(context, 200, handleStats, Unmanaged.passRetained(self).toOpaque())
+        guard result == 0 else {
+            return
+        }
     }
 
     deinit {
