@@ -29,6 +29,14 @@ public class RistPeer {
         self.context = context
     }
 
+    public func setWeight(weight: UInt32) {
+        rist_peer_weight_set(context.context, peer, weight)
+    }
+
+    public func getId() -> UInt32 {
+        return rist_peer_get_id(peer)
+    }
+
     deinit {
         rist_peer_destroy(context.context, peer)
     }
@@ -69,9 +77,9 @@ public class RistContext {
             }
         self.context = context
         onStats = nil
-        result = rist_stats_callback_set(context, 200, handleStats, Unmanaged.passRetained(self).toOpaque())
+        result = rist_stats_callback_set(context, 200, handleStats, Unmanaged.passUnretained(self).toOpaque())
         guard result == 0 else {
-            return
+            return nil
         }
     }
 
