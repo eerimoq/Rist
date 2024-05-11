@@ -45,6 +45,8 @@ public class RistPeer {
 public class RistContext {
     let context: OpaquePointer
     public var onStats: ((RistStats) -> Void)?
+    public var onPeerConnected: ((UInt32) -> Void)?
+    public var onPeerDisconnected: ((UInt32) -> Void)?
 
     public init?(senderProfile profile: rist_profile = RIST_PROFILE_MAIN) {
         var context: OpaquePointer?
@@ -55,11 +57,11 @@ public class RistContext {
             return nil
         }
         let handleStats: @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<rist_stats>?)
-            -> Int32 = { arg, stats in
-                guard let arg else {
+            -> Int32 = { contextArg, stats in
+                guard let contextArg else {
                     return 0
                 }
-                let context: RistContext = Unmanaged.fromOpaque(arg).takeUnretainedValue()
+                let context: RistContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
                 guard let stats = stats?.pointee.stats else {
                     return 0
                 }
@@ -81,6 +83,27 @@ public class RistContext {
         guard result == 0 else {
             return nil
         }
+        let handleConnectionStatusChange: @convention(c) (
+            UnsafeMutableRawPointer?,
+            OpaquePointer?,
+            rist_connection_status
+        ) -> Void = { contextArg, peer, status in
+            guard let contextArg, let peer else {
+                return
+            }
+            let context: RistContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
+            let peerId = rist_peer_get_id(peer)
+            if status == RIST_CONNECTION_ESTABLISHED {
+                context.onPeerConnected?(peerId)
+            } else {
+                context.onPeerDisconnected?(peerId)
+            }
+        }
+        _ = rist_connection_status_callback_set(
+            context,
+            handleConnectionStatusChange,
+            Unmanaged.passUnretained(self).toOpaque()
+        )
     }
 
     deinit {
