@@ -107,6 +107,9 @@ public class RistContext {
     }
 
     deinit {
+        onStats = nil
+        onPeerConnected = nil
+        onPeerDisconnected = nil
         rist_destroy(context)
     }
 
