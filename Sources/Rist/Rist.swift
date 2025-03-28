@@ -42,11 +42,15 @@ public class RistPeer {
     }
 }
 
+public protocol RistContextDelegate: AnyObject {
+    func ristContextStats(_ context: RistContext, stats: RistStats)
+    func ristContextPeerConnected(_ context: RistContext, peerId: UInt32)
+    func ristContextPeerDisconnected(_ context: RistContext, peerId: UInt32)
+}
+
 public class RistContext {
     let context: OpaquePointer
-    public var onStats: ((RistStats) -> Void)?
-    public var onPeerConnected: ((UInt32) -> Void)?
-    public var onPeerDisconnected: ((UInt32) -> Void)?
+    public weak var delegate: RistContextDelegate?
 
     public init?(senderProfile profile: rist_profile = RIST_PROFILE_MAIN) {
         var context: OpaquePointer?
@@ -65,7 +69,7 @@ public class RistContext {
                 guard let stats = stats?.pointee.stats else {
                     return 0
                 }
-                context.onStats?(RistStats(sender: RistSenderStats(
+                context.delegate?.ristContextStats(context, stats: RistStats(sender: RistSenderStats(
                     peerId: stats.sender_peer.peer_id,
                     bandwidth: UInt64(stats.sender_peer.bandwidth),
                     retryBandwidth: UInt64(stats.sender_peer.retry_bandwidth),
@@ -78,7 +82,6 @@ public class RistContext {
                 return 0
             }
         self.context = context
-        onStats = nil
         result = rist_stats_callback_set(context, 200, handleStats, Unmanaged.passUnretained(self).toOpaque())
         guard result == 0 else {
             return nil
@@ -94,9 +97,9 @@ public class RistContext {
             let context: RistContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
             let peerId = rist_peer_get_id(peer)
             if status == RIST_CONNECTION_ESTABLISHED {
-                context.onPeerConnected?(peerId)
+                context.delegate?.ristContextPeerConnected(context, peerId: peerId)
             } else {
-                context.onPeerDisconnected?(peerId)
+                context.delegate?.ristContextPeerDisconnected(context, peerId: peerId)
             }
         }
         _ = rist_connection_status_callback_set(
@@ -107,9 +110,6 @@ public class RistContext {
     }
 
     deinit {
-        onStats = nil
-        onPeerConnected = nil
-        onPeerDisconnected = nil
         rist_destroy(context)
     }
 
