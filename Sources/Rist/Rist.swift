@@ -165,27 +165,80 @@ public class RistSenderContext {
 }
 
 public protocol RistReceiverContextDelegate: AnyObject {
-    func ristReceiverContextReceivedData(_ context: RistReceiverContext, data: Data)
     func ristReceiverContextConnected(_ context: RistReceiverContext)
     func ristReceiverContextDisconnected(_ context: RistReceiverContext)
+    func ristReceiverContextReceivedData(_ context: RistReceiverContext, data: Data)
 }
 
 public class RistReceiverContext {
     let context: OpaquePointer
     public weak var delegate: RistReceiverContextDelegate?
 
-    public init?(profile: rist_profile = RIST_PROFILE_MAIN, port _: UInt16) {
+    public init?(inputUrl: String, profile: rist_profile = RIST_PROFILE_MAIN) {
         var context: OpaquePointer?
-        let result = withUnsafeMutablePointer(to: &context) { contextPointer in
+        var result = withUnsafeMutablePointer(to: &context) { contextPointer in
             rist_receiver_create(contextPointer, profile, nil)
         }
         guard result == 0, let context else {
             return nil
         }
         self.context = context
-        // rist_connection_status_callback_set(ctx, callback)
-        // rist_receiver_data_callback_set2(ctx, callback)
-        // rist_peer_create(ctx, port)
+        let handleConnectionStatusChange: @convention(c) (
+            UnsafeMutableRawPointer?,
+            OpaquePointer?,
+            rist_connection_status
+        ) -> Void = { contextArg, _, status in
+            guard let contextArg else {
+                return
+            }
+            let context: RistReceiverContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
+            if status == RIST_CLIENT_CONNECTED {
+                context.delegate?.ristReceiverContextConnected(context)
+            } else {
+                context.delegate?.ristReceiverContextDisconnected(context)
+            }
+        }
+        _ = rist_connection_status_callback_set(
+            context,
+            handleConnectionStatusChange,
+            Unmanaged.passUnretained(self).toOpaque()
+        )
+        let handleReceiveData: @convention(c) (
+            UnsafeMutableRawPointer?, UnsafeMutablePointer<rist_data_block>?
+        ) -> Int32 = { contextArg, dataBlockPtr in
+            var dataBlockPtr = dataBlockPtr
+            guard let contextArg, let dataBlock = dataBlockPtr?.pointee else {
+                rist_receiver_data_block_free2(&dataBlockPtr)
+                return -1
+            }
+            let context: RistReceiverContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
+            let data = Data(bytes: dataBlock.payload!, count: dataBlock.payload_len)
+            context.delegate?.ristReceiverContextReceivedData(context, data: data)
+            rist_receiver_data_block_free2(&dataBlockPtr)
+            return 0
+        }
+        _ = rist_receiver_data_callback_set2(
+            context,
+            handleReceiveData,
+            Unmanaged.passUnretained(self).toOpaque()
+        )
+        var config: UnsafeMutablePointer<rist_peer_config>?
+        result = withUnsafeMutablePointer(to: &config) { configPointer in
+            rist_parse_address2(inputUrl.cString(using: .utf8), configPointer)
+        }
+        guard result == 0 else {
+            return nil
+        }
+        var peer: OpaquePointer?
+        result = withUnsafeMutablePointer(to: &peer) { peerPointer in
+            rist_peer_create(context, peerPointer, config)
+        }
+        withUnsafeMutablePointer(to: &config) { configPointer in
+            _ = rist_peer_config_free2(configPointer)
+        }
+        guard result == 0, let peer else {
+            return nil
+        }
     }
 
     deinit {
