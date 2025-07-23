@@ -22,9 +22,9 @@ public struct RistStats {
 
 public class RistPeer {
     let peer: OpaquePointer
-    let context: RistContext
+    let context: RistSenderContext
 
-    init(peer: OpaquePointer, context: RistContext) {
+    init(peer: OpaquePointer, context: RistSenderContext) {
         self.peer = peer
         self.context = context
     }
@@ -42,17 +42,17 @@ public class RistPeer {
     }
 }
 
-public protocol RistContextDelegate: AnyObject {
-    func ristContextStats(_ context: RistContext, stats: RistStats)
-    func ristContextPeerConnected(_ context: RistContext, peerId: UInt32)
-    func ristContextPeerDisconnected(_ context: RistContext, peerId: UInt32)
+public protocol RistSenderContextDelegate: AnyObject {
+    func ristSenderContextStats(_ context: RistSenderContext, stats: RistStats)
+    func ristSenderContextPeerConnected(_ context: RistSenderContext, peerId: UInt32)
+    func ristSenderContextPeerDisconnected(_ context: RistSenderContext, peerId: UInt32)
 }
 
-public class RistContext {
+public class RistSenderContext {
     let context: OpaquePointer
-    public weak var delegate: RistContextDelegate?
+    public weak var delegate: RistSenderContextDelegate?
 
-    public init?(senderProfile profile: rist_profile = RIST_PROFILE_MAIN) {
+    public init?(profile: rist_profile = RIST_PROFILE_MAIN) {
         var context: OpaquePointer?
         var result = withUnsafeMutablePointer(to: &context) { contextPointer in
             rist_sender_create(contextPointer, profile, 0, nil)
@@ -65,11 +65,11 @@ public class RistContext {
                 guard let contextArg else {
                     return 0
                 }
-                let context: RistContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
+                let context: RistSenderContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
                 guard let stats = stats?.pointee.stats else {
                     return 0
                 }
-                context.delegate?.ristContextStats(context, stats: RistStats(sender: RistSenderStats(
+                context.delegate?.ristSenderContextStats(context, stats: RistStats(sender: RistSenderStats(
                     peerId: stats.sender_peer.peer_id,
                     bandwidth: UInt64(stats.sender_peer.bandwidth),
                     retryBandwidth: UInt64(stats.sender_peer.retry_bandwidth),
@@ -94,12 +94,12 @@ public class RistContext {
             guard let contextArg, let peer else {
                 return
             }
-            let context: RistContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
+            let context: RistSenderContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
             let peerId = rist_peer_get_id(peer)
             if status == RIST_CONNECTION_ESTABLISHED {
-                context.delegate?.ristContextPeerConnected(context, peerId: peerId)
+                context.delegate?.ristSenderContextPeerConnected(context, peerId: peerId)
             } else {
-                context.delegate?.ristContextPeerDisconnected(context, peerId: peerId)
+                context.delegate?.ristSenderContextPeerDisconnected(context, peerId: peerId)
             }
         }
         _ = rist_connection_status_callback_set(
@@ -157,6 +157,39 @@ public class RistContext {
             rist_sender_data_write(context, dataBlockPointer)
         }
         return writtenCount == count
+    }
+
+    public func start() -> Bool {
+        return rist_start(context) == 0
+    }
+}
+
+public protocol RistReceiverContextDelegate: AnyObject {
+    func ristReceiverContextReceivedData(_ context: RistReceiverContext, data: Data)
+    func ristReceiverContextConnected(_ context: RistReceiverContext)
+    func ristReceiverContextDisconnected(_ context: RistReceiverContext)
+}
+
+public class RistReceiverContext {
+    let context: OpaquePointer
+    public weak var delegate: RistReceiverContextDelegate?
+
+    public init?(profile: rist_profile = RIST_PROFILE_MAIN, port _: UInt16) {
+        var context: OpaquePointer?
+        let result = withUnsafeMutablePointer(to: &context) { contextPointer in
+            rist_receiver_create(contextPointer, profile, nil)
+        }
+        guard result == 0, let context else {
+            return nil
+        }
+        self.context = context
+        // rist_connection_status_callback_set(ctx, callback)
+        // rist_receiver_data_callback_set2(ctx, callback)
+        // rist_peer_create(ctx, port)
+    }
+
+    deinit {
+        rist_destroy(context)
     }
 
     public func start() -> Bool {
