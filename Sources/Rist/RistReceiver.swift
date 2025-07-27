@@ -2,9 +2,11 @@ import Foundation
 import librist
 
 public protocol RistReceiverContextDelegate: AnyObject {
-    func ristReceiverContextConnected(_ context: RistReceiverContext)
-    func ristReceiverContextDisconnected(_ context: RistReceiverContext)
-    func ristReceiverContextReceivedData(_ context: RistReceiverContext, data: Data)
+    func ristReceiverContextConnected(_ context: RistReceiverContext, _ virtualDestinationPort: UInt16)
+    func ristReceiverContextDisconnected(_ context: RistReceiverContext, _ virtualDestinationPort: UInt16)
+    func ristReceiverContextReceivedData(_ context: RistReceiverContext,
+                                         _ virtualDestinationPort: UInt16,
+                                         packets: [Data])
 }
 
 private func createReceiverContext(profile: rist_profile) -> OpaquePointer? {
@@ -39,10 +41,22 @@ private func createReceiverPeer(context: OpaquePointer, inputUrl: String) -> Opa
     return peer
 }
 
+private class Peer {
+    let peer: OpaquePointer?
+    var virtualDestinationPort: UInt16?
+    var packets: [Data] = []
+    var latestReceivedPacketsTime = ContinuousClock.now
+
+    init(peer: OpaquePointer?) {
+        self.peer = peer
+    }
+}
+
 public class RistReceiverContext {
     private let context: OpaquePointer
     private let peer: OpaquePointer
     public weak var delegate: RistReceiverContextDelegate?
+    private var connectedPeersById: [UInt32: Peer] = [:]
 
     public init?(inputUrl: String, profile: rist_profile = RIST_PROFILE_MAIN) {
         guard let context = createReceiverContext(profile: profile) else {
@@ -72,15 +86,19 @@ public class RistReceiverContext {
             UnsafeMutableRawPointer?,
             OpaquePointer?,
             rist_connection_status
-        ) -> Void = { contextArg, _, status in
+        ) -> Void = { contextArg, peer, status in
             guard let contextArg else {
                 return
             }
             let context: RistReceiverContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
+            let peerId = rist_peer_get_id(peer)
             if status == RIST_CLIENT_CONNECTED {
-                context.delegate?.ristReceiverContextConnected(context)
+                context.connectedPeersById[peerId] = Peer(peer: peer)
             } else {
-                context.delegate?.ristReceiverContextDisconnected(context)
+                let peer = context.connectedPeersById.removeValue(forKey: peerId)
+                if let virtualDestinationPort = peer?.virtualDestinationPort {
+                    context.delegate?.ristReceiverContextDisconnected(context, virtualDestinationPort)
+                }
             }
         }
         _ = rist_connection_status_callback_set(
@@ -100,9 +118,26 @@ public class RistReceiverContext {
                 return -1
             }
             let context: RistReceiverContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
+            guard let peer = context.connectedPeersById[rist_peer_get_id(dataBlock.peer)] else {
+                rist_receiver_data_block_free2(&dataBlockPtr)
+                return -1
+            }
+            if peer.virtualDestinationPort == nil {
+                peer.virtualDestinationPort = dataBlock.virt_dst_port
+                context.delegate?.ristReceiverContextConnected(context, dataBlock.virt_dst_port)
+            }
             let data = Data(bytes: dataBlock.payload!, count: dataBlock.payload_len)
-            context.delegate?.ristReceiverContextReceivedData(context, data: data)
+            peer.packets.append(data)
             rist_receiver_data_block_free2(&dataBlockPtr)
+            let now = ContinuousClock.now
+            guard peer.latestReceivedPacketsTime.duration(to: now) > .milliseconds(50) else {
+                return 0
+            }
+            peer.latestReceivedPacketsTime = now
+            context.delegate?.ristReceiverContextReceivedData(context,
+                                                              dataBlock.virt_dst_port,
+                                                              packets: peer.packets)
+            peer.packets = []
             return 0
         }
         _ = rist_receiver_data_callback_set2(
