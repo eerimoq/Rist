@@ -39,9 +39,9 @@ private func createReceiverPeer(context: OpaquePointer, inputUrl: String) -> Opa
     return peer
 }
 
-private class Stream {
+private final class Stream {
     var peers: Set<OpaquePointer?> = []
-    var packets: [Data] = []
+    var receivedPackets: [Data] = []
     var latestReceivedPacketsTime = ContinuousClock.now
 
     init() {}
@@ -143,17 +143,18 @@ public final class RistReceiverContext {
             rist_receiver_data_block_free2(&dataBlockPtr)
             return -1
         }
-        stream.peers.insert(peer)
+        stream.peers.insert(dataBlock.peer)
         let data = Data(bytes: dataBlock.payload!, count: dataBlock.payload_len)
-        rist_receiver_data_block_free2(&dataBlockPtr)
-        stream.packets.append(data)
+        stream.receivedPackets.append(data)
         let now = ContinuousClock.now
         guard stream.latestReceivedPacketsTime.duration(to: now) > .milliseconds(50) else {
+            rist_receiver_data_block_free2(&dataBlockPtr)
             return 0
         }
-        delegate?.ristReceiverContextReceivedData(dataBlock.virt_dst_port, packets: stream.packets)
+        delegate?.ristReceiverContextReceivedData(dataBlock.virt_dst_port, packets: stream.receivedPackets)
         stream.latestReceivedPacketsTime = now
-        stream.packets = []
+        stream.receivedPackets = []
+        rist_receiver_data_block_free2(&dataBlockPtr)
         return 0
     }
 }
