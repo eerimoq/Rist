@@ -2,11 +2,9 @@ import Foundation
 import librist
 
 public protocol RistReceiverContextDelegate: AnyObject {
-    func ristReceiverContextConnected(_ context: RistReceiverContext, _ virtualDestinationPort: UInt16)
-    func ristReceiverContextDisconnected(_ context: RistReceiverContext, _ virtualDestinationPort: UInt16)
-    func ristReceiverContextReceivedData(_ context: RistReceiverContext,
-                                         _ virtualDestinationPort: UInt16,
-                                         packets: [Data])
+    func ristReceiverContextConnected(_ virtualDestinationPort: UInt16)
+    func ristReceiverContextDisconnected(_ virtualDestinationPort: UInt16)
+    func ristReceiverContextReceivedData(_ virtualDestinationPort: UInt16, packets: [Data])
 }
 
 private func createReceiverContext(profile: rist_profile) -> OpaquePointer? {
@@ -41,22 +39,19 @@ private func createReceiverPeer(context: OpaquePointer, inputUrl: String) -> Opa
     return peer
 }
 
-private class Peer {
-    let peer: OpaquePointer?
-    var virtualDestinationPort: UInt16?
+private class Stream {
+    var peers: Set<OpaquePointer?> = []
     var packets: [Data] = []
     var latestReceivedPacketsTime = ContinuousClock.now
 
-    init(peer: OpaquePointer?) {
-        self.peer = peer
-    }
+    init() {}
 }
 
-public class RistReceiverContext {
+public final class RistReceiverContext {
     private let context: OpaquePointer
     private let peer: OpaquePointer
     public weak var delegate: RistReceiverContextDelegate?
-    private var connectedPeersById: [UInt32: Peer] = [:]
+    private var streams: [UInt16: Stream] = [:]
 
     public init?(inputUrl: String, profile: rist_profile = RIST_PROFILE_MAIN) {
         guard let context = createReceiverContext(profile: profile) else {
@@ -91,15 +86,7 @@ public class RistReceiverContext {
                 return
             }
             let context: RistReceiverContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
-            let peerId = rist_peer_get_id(peer)
-            if status == RIST_CLIENT_CONNECTED {
-                context.connectedPeersById[peerId] = Peer(peer: peer)
-            } else {
-                let peer = context.connectedPeersById.removeValue(forKey: peerId)
-                if let virtualDestinationPort = peer?.virtualDestinationPort {
-                    context.delegate?.ristReceiverContextDisconnected(context, virtualDestinationPort)
-                }
-            }
+            context.handleConnectionStatusCallback(status: status, peer: peer)
         }
         _ = rist_connection_status_callback_set(
             context,
@@ -108,42 +95,65 @@ public class RistReceiverContext {
         )
     }
 
+    private func handleConnectionStatusCallback(status: rist_connection_status, peer: OpaquePointer?) {
+        guard status != RIST_CLIENT_CONNECTED else {
+            return
+        }
+        if let (virtualDestinationPort, stream) = streams.first(where: { $0.value.peers.contains(peer) }) {
+            stream.peers.remove(peer)
+            if stream.peers.isEmpty {
+                streams.removeValue(forKey: virtualDestinationPort)
+                delegate?.ristReceiverContextDisconnected(virtualDestinationPort)
+            }
+        }
+    }
+
     private func setDataHandlerCallback() {
         let handleReceiveData: @convention(c) (
             UnsafeMutableRawPointer?, UnsafeMutablePointer<rist_data_block>?
         ) -> Int32 = { contextArg, dataBlockPtr in
             var dataBlockPtr = dataBlockPtr
-            guard let contextArg, let dataBlock = dataBlockPtr?.pointee else {
+            guard let contextArg else {
                 rist_receiver_data_block_free2(&dataBlockPtr)
                 return -1
             }
             let context: RistReceiverContext = Unmanaged.fromOpaque(contextArg).takeUnretainedValue()
-            guard let peer = context.connectedPeersById[rist_peer_get_id(dataBlock.peer)] else {
-                rist_receiver_data_block_free2(&dataBlockPtr)
-                return -1
-            }
-            if peer.virtualDestinationPort == nil {
-                peer.virtualDestinationPort = dataBlock.virt_dst_port
-                context.delegate?.ristReceiverContextConnected(context, dataBlock.virt_dst_port)
-            }
-            let data = Data(bytes: dataBlock.payload!, count: dataBlock.payload_len)
-            peer.packets.append(data)
-            rist_receiver_data_block_free2(&dataBlockPtr)
-            let now = ContinuousClock.now
-            guard peer.latestReceivedPacketsTime.duration(to: now) > .milliseconds(50) else {
-                return 0
-            }
-            peer.latestReceivedPacketsTime = now
-            context.delegate?.ristReceiverContextReceivedData(context,
-                                                              dataBlock.virt_dst_port,
-                                                              packets: peer.packets)
-            peer.packets = []
-            return 0
+            return context.handleDataHandlerCallback(dataBlockPtr: dataBlockPtr)
         }
         _ = rist_receiver_data_callback_set2(
             context,
             handleReceiveData,
             Unmanaged.passUnretained(self).toOpaque()
         )
+    }
+
+    private func handleDataHandlerCallback(dataBlockPtr: UnsafeMutablePointer<rist_data_block>?) -> Int32 {
+        var dataBlockPtr = dataBlockPtr
+        guard let dataBlock = dataBlockPtr?.pointee else {
+            rist_receiver_data_block_free2(&dataBlockPtr)
+            return -1
+        }
+        var stream = streams[dataBlock.virt_dst_port]
+        if stream == nil {
+            stream = Stream()
+            streams[dataBlock.virt_dst_port] = stream!
+            delegate?.ristReceiverContextConnected(dataBlock.virt_dst_port)
+        }
+        guard let stream else {
+            rist_receiver_data_block_free2(&dataBlockPtr)
+            return -1
+        }
+        stream.peers.insert(peer)
+        let data = Data(bytes: dataBlock.payload!, count: dataBlock.payload_len)
+        rist_receiver_data_block_free2(&dataBlockPtr)
+        stream.packets.append(data)
+        let now = ContinuousClock.now
+        guard stream.latestReceivedPacketsTime.duration(to: now) > .milliseconds(50) else {
+            return 0
+        }
+        delegate?.ristReceiverContextReceivedData(dataBlock.virt_dst_port, packets: stream.packets)
+        stream.latestReceivedPacketsTime = now
+        stream.packets = []
+        return 0
     }
 }
