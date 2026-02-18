@@ -67,13 +67,13 @@ public final class RistReceiverContext {
         setDataHandlerCallback()
     }
 
-    deinit {
-        rist_peer_destroy(context, peer)
-        rist_destroy(context)
-    }
-
     public func start() -> Bool {
         return rist_start(context) == 0
+    }
+
+    public func stop() {
+        rist_peer_destroy(context, peer)
+        rist_destroy(context)
     }
 
     private func setConnectionStatusCallback() {
