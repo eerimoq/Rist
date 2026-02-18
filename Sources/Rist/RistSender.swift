@@ -95,13 +95,10 @@ public class RistSenderContext {
         {
             withUnsafePointer(to: config.srp_username) { uPtr in
                 withUnsafePointer(to: config.srp_password) { pPtr in
-                    uPtr.withMemoryRebound(to: CChar.self, capacity: Int(RIST_MAX_STRING_LONG)) { username in
-                        pPtr
-                            .withMemoryRebound(to: CChar.self,
-                                               capacity: Int(RIST_MAX_STRING_LONG))
-                            { password in
-                                _ = rist_enable_eap_srp_2(peer, username, password, nil, nil)
-                            }
+                    uPtr.withMemoryRebound(to: CChar.self, capacity: 1) { username in
+                        pPtr.withMemoryRebound(to: CChar.self, capacity: 1) { password in
+                            _ = rist_enable_eap_srp_2(peer, username, password, nil, nil)
+                        }
                     }
                 }
             }
