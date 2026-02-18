@@ -68,7 +68,11 @@ public class RistSenderContext {
         setConnectionStatusCallback()
     }
 
-    deinit {
+    public func start() -> Bool {
+        return rist_start(context) == 0
+    }
+
+    public func stop() {
         rist_destroy(context)
     }
 
@@ -116,10 +120,6 @@ public class RistSenderContext {
             rist_sender_data_write(context, dataBlockPointer)
         }
         return writtenCount == count
-    }
-
-    public func start() -> Bool {
-        return rist_start(context) == 0
     }
 
     private func setStatsCallback() {
