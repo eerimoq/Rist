@@ -100,7 +100,8 @@ public class RistSenderContext {
                             .withMemoryRebound(to: CChar.self,
                                                capacity: Int(RIST_MAX_STRING_LONG))
                             { password in
-                                _ = rist_enable_eap_srp_2(peer, username, password, nil, nil)
+                                let r = rist_enable_eap_srp_2(peer, username, password, nil, nil)
+                                print("xxx res \(r)")
                             }
                     }
                 }
