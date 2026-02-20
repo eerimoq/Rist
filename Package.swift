@@ -10,10 +10,6 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "librist",
-            targets: ["librist"]
-        ),
-        .library(
             name: "Rist",
             targets: ["Rist", "librist"]),
     ],
