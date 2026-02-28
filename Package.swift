@@ -7,7 +7,7 @@ let package = Package(
     name: "Rist",
     platforms: [
       .iOS(.v16),
-      .macOS(.v13)
+      .macCatalyst(.v13)
     ],
     products: [
         .library(
