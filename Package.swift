@@ -6,7 +6,8 @@ import PackageDescription
 let package = Package(
     name: "Rist",
     platforms: [
-        .iOS(.v16)
+      .iOS(.v16),
+      .macOS(.v13)
     ],
     products: [
         .library(
@@ -16,7 +17,7 @@ let package = Package(
     targets: [
         .target(name: "Rist", dependencies: ["librist"]),
         .binaryTarget(name: "librist",
-                      url: "https://github.com/eerimoq/xcframeworks/releases/download/librist-0.3.0/librist.xcframework.zip",
-                      checksum: "618e664d27af03eb4e88517a4767b0d284a405da9a06b1342c738227db0d81a6")
+                      url: "https://github.com/eerimoq/xcframeworks/releases/download/librist-0.3.0-3/librist.xcframework.zip",
+                      checksum: "6125d0c468e19c0c42420ba5305212c2e2328fb8ecd2859ca40ab498b81bb003")
     ]
 )
