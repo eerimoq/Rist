@@ -7,7 +7,7 @@ let package = Package(
     name: "Rist",
     platforms: [
       .iOS(.v16),
-      .macCatalyst(.v13)
+      .macCatalyst(.v16)
     ],
     products: [
         .library(
@@ -17,7 +17,7 @@ let package = Package(
     targets: [
         .target(name: "Rist", dependencies: ["librist"]),
         .binaryTarget(name: "librist",
-                      url: "https://github.com/eerimoq/xcframeworks/releases/download/librist-0.3.0-3/librist.xcframework.zip",
-                      checksum: "6125d0c468e19c0c42420ba5305212c2e2328fb8ecd2859ca40ab498b81bb003")
+                      url: "https://github.com/eerimoq/xcframeworks/releases/download/librist-0.3.0-4/librist.xcframework.zip",
+                      checksum: "fb3488706664a7b7f3bbe8abc2c290ca10830334ad5813b7e00473caa0ad6ee2")
     ]
 )
