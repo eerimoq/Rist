@@ -17,7 +17,7 @@ let package = Package(
     targets: [
         .target(name: "Rist", dependencies: ["librist"]),
         .binaryTarget(name: "librist",
-                      url: "https://github.com/eerimoq/xcframeworks/releases/download/librist-0.3.1-1/librist.xcframework.zip",
-                      checksum: "21089f909757d15b0b5a621677d1e0df38198db2897de47e673b1ce594c41947")
+                      url: "https://github.com/eerimoq/xcframeworks/releases/download/librist-0.2.13/librist.xcframework.zip",
+                      checksum: "df5a77089cd566f5e75dd7f3905ec6d2c9d0e44291e2d30846b290383ae248d1")
     ]
 )
