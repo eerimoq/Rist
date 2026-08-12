@@ -52,6 +52,7 @@ public final class RistReceiverContext {
     private let peer: OpaquePointer
     public weak var delegate: RistReceiverContextDelegate?
     private var streams: [UInt16: Stream] = [:]
+    private let streamsLock = NSLock()
 
     public init?(inputUrl: String, profile: rist_profile = RIST_PROFILE_MAIN) {
         guard let context = createReceiverContext(profile: profile) else {
@@ -96,15 +97,21 @@ public final class RistReceiverContext {
     }
 
     private func handleConnectionStatusCallback(status: rist_connection_status, peer: OpaquePointer?) {
-        guard status != RIST_CLIENT_CONNECTED else {
+        guard status == RIST_CONNECTION_TIMED_OUT || status == RIST_CLIENT_TIMED_OUT else {
             return
         }
+        streamsLock.lock()
+        var disconnectedVirtualDestinationPort: UInt16?
         if let (virtualDestinationPort, stream) = streams.first(where: { $0.value.peers.contains(peer) }) {
             stream.peers.remove(peer)
             if stream.peers.isEmpty {
                 streams.removeValue(forKey: virtualDestinationPort)
-                delegate?.ristReceiverContextDisconnected(virtualDestinationPort)
+                disconnectedVirtualDestinationPort = virtualDestinationPort
             }
+        }
+        streamsLock.unlock()
+        if let disconnectedVirtualDestinationPort {
+            delegate?.ristReceiverContextDisconnected(disconnectedVirtualDestinationPort)
         }
     }
 
@@ -133,28 +140,35 @@ public final class RistReceiverContext {
             rist_receiver_data_block_free2(&dataBlockPtr)
             return -1
         }
-        var stream = streams[dataBlock.virt_dst_port]
-        if stream == nil {
+        let virtualDestinationPort = dataBlock.virt_dst_port
+        let data = Data(bytes: dataBlock.payload!, count: dataBlock.payload_len)
+        streamsLock.lock()
+        var connected = false
+        let stream: Stream
+        if let existingStream = streams[virtualDestinationPort] {
+            stream = existingStream
+        } else {
             stream = Stream()
-            streams[dataBlock.virt_dst_port] = stream!
-            delegate?.ristReceiverContextConnected(dataBlock.virt_dst_port)
-        }
-        guard let stream else {
-            rist_receiver_data_block_free2(&dataBlockPtr)
-            return -1
+            streams[virtualDestinationPort] = stream
+            connected = true
         }
         stream.peers.insert(dataBlock.peer)
-        let data = Data(bytes: dataBlock.payload!, count: dataBlock.payload_len)
         stream.receivedPackets.append(data)
         let now = ContinuousClock.now
-        guard stream.latestReceivedPacketsTime.duration(to: now) > .milliseconds(50) else {
-            rist_receiver_data_block_free2(&dataBlockPtr)
-            return 0
+        var packets: [Data]?
+        if stream.latestReceivedPacketsTime.duration(to: now) > .milliseconds(50) {
+            packets = stream.receivedPackets
+            stream.latestReceivedPacketsTime = now
+            stream.receivedPackets = []
         }
-        delegate?.ristReceiverContextReceivedData(dataBlock.virt_dst_port, packets: stream.receivedPackets)
-        stream.latestReceivedPacketsTime = now
-        stream.receivedPackets = []
+        streamsLock.unlock()
         rist_receiver_data_block_free2(&dataBlockPtr)
+        if connected {
+            delegate?.ristReceiverContextConnected(virtualDestinationPort)
+        }
+        if let packets {
+            delegate?.ristReceiverContextReceivedData(virtualDestinationPort, packets: packets)
+        }
         return 0
     }
 }
