@@ -101,17 +101,17 @@ public final class RistReceiverContext {
             return
         }
         streamsLock.lock()
-        var disconnectedVirtualDestinationPort: UInt16?
-        if let (virtualDestinationPort, stream) = streams.first(where: { $0.value.peers.contains(peer) }) {
+        var disconnectedVirtualDestinationPorts: [UInt16] = []
+        for (virtualDestinationPort, stream) in streams where stream.peers.contains(peer) {
             stream.peers.remove(peer)
             if stream.peers.isEmpty {
                 streams.removeValue(forKey: virtualDestinationPort)
-                disconnectedVirtualDestinationPort = virtualDestinationPort
+                disconnectedVirtualDestinationPorts.append(virtualDestinationPort)
             }
         }
         streamsLock.unlock()
-        if let disconnectedVirtualDestinationPort {
-            delegate?.ristReceiverContextDisconnected(disconnectedVirtualDestinationPort)
+        for virtualDestinationPort in disconnectedVirtualDestinationPorts {
+            delegate?.ristReceiverContextDisconnected(virtualDestinationPort)
         }
     }
 
